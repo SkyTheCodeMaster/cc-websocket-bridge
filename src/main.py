@@ -29,7 +29,7 @@ class Channel:
           await ws.send_bytes(msg)
 
   async def handle_websocket(self,request: web.Request) -> web.Response:
-    ws = web.WebSocketResponse()
+    ws = web.WebSocketResponse(heartbeat=10.0)
     await ws.prepare(request)
 
     self.clients.append(ws)
