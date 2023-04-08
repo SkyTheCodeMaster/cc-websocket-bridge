@@ -1,7 +1,7 @@
 -- This mimicks the `modem` peripheral but using the server instead.
 local lib = {}
 
-local BASE_URL = "wss://ccws.skystuff.games/connect/"
+local BASE_URL = "wss://ccws.skystuff.cc/connect/"
 
 local channels = {}
 
