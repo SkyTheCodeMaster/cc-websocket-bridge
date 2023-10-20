@@ -77,6 +77,10 @@ async def websocket_handler(request: web.Request) -> web.Response:
     c = Channel(channel,password)
     channels[channel] = c
     return await c.handle_websocket(request)
+
+@routes.get("/")
+async def get_root(request: web.Request) -> web.Response:
+  raise web.HTTPFound("https://github.com/SkyTheCodeMaster/cc-websocket-bridge/")
   
 app = web.Application()
 
