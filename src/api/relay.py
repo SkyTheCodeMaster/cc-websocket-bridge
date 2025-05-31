@@ -48,7 +48,7 @@ class Channel:
         await self.send_message(msg.data, ws)
         try:
           LOG.info(f"[CHAN {self.name}] trying to send node message")
-          await create_node_message(msg.data, self.name)
+          await create_node_message(msg.data, self.name, request.app)
         except Exception:
           LOG.exception("Couldnt send node message")
       else:
