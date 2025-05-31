@@ -14,3 +14,7 @@ share/*
 share
 
 pyvenv.cfg
+
+src/*.service
+src/run.sh
+src/config.toml

@@ -1,89 +1,105 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import asyncio
+import logging
+import math
+import os
+import tomllib
 
 import aiohttp
+import coloredlogs
+import uvloop
 from aiohttp import web
 
-if TYPE_CHECKING:
-  from typing import Union
+from utils.get_routes import get_module
+from utils.logger import CustomWebLogger
+from utils.pg_pool_middleware import pg_pool_middleware
 
-channels: dict[str,Channel] = {}
+LOGFMT = "[%(filename)s][%(asctime)s][%(levelname)s] %(message)s"
+LOGDATEFMT = "%Y/%m/%d-%H:%M:%S"
 
-class Channel:
-  name: str
-  passwd: str
-  clients: list[web.WebSocketResponse]
+handlers = [
+  logging.StreamHandler()
+]
 
-  def __init__(self, name: str, passwd: str) -> None:
-    self.name = name
-    self.passwd = passwd
-    self.clients = []
+with open("config.toml") as f:
+  config = tomllib.loads(f.read())
 
-  async def send_message(self,msg:Union[str,bytes],sender:web.WebSocketResponse) -> None:
-    for ws in self.clients:
-      if ws != sender:
-        if type(msg) is str:
-          await ws.send_str(msg)
-        else:
-          await ws.send_bytes(msg)
+if config['log']['file']:
+  handlers.append(logging.FileHandler(config['log']['file']))
 
-  async def handle_websocket(self,request: web.Request) -> web.Response:
-    ws = web.WebSocketResponse(heartbeat=10.0)
-    await ws.prepare(request)
+logging.basicConfig(
+  handlers = handlers,
+  format=LOGFMT,
+  datefmt=LOGDATEFMT,
+  level=logging.WARNING,
+)
 
-    self.clients.append(ws)
-    print(f"[CHAN {self.name}] new client. {len(self.clients)} connected.")
+coloredlogs.install(
+  fmt=LOGFMT,
+  datefmt=LOGDATEFMT
+)
 
-    async for msg in ws:
-      if msg.type in (aiohttp.WSMsgType.TEXT,aiohttp.WSMsgType.BINARY):
-        await self.send_message(msg.data,ws)
-      else:
-        print(f"{self.name}: ws connection closed with exception {ws.exception()}")
-    try:
-      self.clients.remove(ws)
-    except: pass
-    print(f"[CHAN {self.name}]: client disconnected. {len(self.clients)} connected.")
-    # Check if we're empty
-    if not self.clients:
-      channels.pop(self.name)
-      print(f"[CHAN {self.name}]: empty, removing.\nChannels:")
-      for channel in channels.values():
-        print(f" - {channel}")
+LOG = logging.getLogger(__name__)
 
-    return ws
-  
-  def __str__(self) -> str:
-    return f"<Channel {self.name} Clients {len(self.clients)}>"
+app = web.Application(
+  logger = CustomWebLogger(LOG),
+  middlewares=[
+    pg_pool_middleware
+  ],
+  client_max_size=8192**2
+)
 
-routes = web.RouteTableDef()
-
-@routes.get("/connect/{tail:.*}")
-async def websocket_handler(request: web.Request) -> web.Response:
-  conndetails: str = request.path.removeprefix("/connect/") # Channel/password is same thing here.
+async def startup():
   try:
-    channel, password = conndetails.split("/")
-  except ValueError:
-    channel = conndetails
-    password = ""
-  if channel in channels: # We are connecting to an existing channel.
-    c = channels[channel]
-    if password == c.passwd:
-      return await c.handle_websocket(request)
-    else:
-      return web.Response(status=403)
-  else:
-    # We are creating a new channel.
-    c = Channel(channel,password)
-    channels[channel] = c
-    return await c.handle_websocket(request)
+    session = aiohttp.ClientSession()
+    app.cs = session
 
-@routes.get("/")
-async def get_root(request: web.Request) -> web.Response:
-  raise web.HTTPFound("https://github.com/SkyTheCodeMaster/cc-websocket-bridge/")
-  
-app = web.Application()
+    app.LOG = LOG
+    disabled_cogs: list[str] = []
 
-app.add_routes(routes)
+    for cog in [
+        f.replace(".py","") 
+        for f in os.listdir("api") 
+        if os.path.isfile(os.path.join("api",f)) and f.endswith(".py")
+      ]:
+      if cog not in disabled_cogs:
+        LOG.info(f"Loading {cog}...")
+        try:
+          lib = get_module(f"api.{cog}")
+          await lib.setup(app)
+        except Exception:
+          LOG.exception(f"Failed to load cog {cog}!")
 
-web.run_app(app,port=11999)
+    LOG.info("Loading frontend...")
+    try:
+      lib = get_module("frontend.routes")
+      await lib.setup(app)
+    except Exception:
+      LOG.exception("Failed to load frontend!")
+
+    # If we're running as the daemon, we dont need to serve.
+    runner = web.AppRunner(app, logger=CustomWebLogger(LOG))
+    await runner.setup()
+    site = web.TCPSite(
+      runner,
+      config['srv']['host'],
+      config['srv']['port'],
+    )
+    await site.start()
+    print(f"Started server on http://{config['srv']['host']}:{config['srv']['port']}...\nPress ^C to close...")
+    await asyncio.sleep(math.inf)
+  except KeyboardInterrupt:
+    pass
+  except asyncio.exceptions.TimeoutError:
+    LOG.error("PostgreSQL connection timeout. Check the connection arguments!")
+  finally:
+    try: await site.stop()   # noqa: E701
+    except: pass  # noqa: E722, E701
+    try: await session.close()   # noqa: E701
+    except: pass  # noqa: E722, E701
+
+try:
+  uvloop.run(startup(), debug=True)
+except KeyboardInterrupt:
+  print("Server shut down.")
