@@ -43,9 +43,11 @@ class Channel:
     request.LOG.info(f"[CHAN {self.name}] new client. {len(self.clients)} connected.")
 
     async for msg in ws:
+      LOG.info(f"[CHAN {self.name}] received message")
       if msg.type in (aiohttp.WSMsgType.TEXT, aiohttp.WSMsgType.BINARY):
         await self.send_message(msg.data, ws)
         try:
+          LOG.info(f"[CHAN {self.name}] trying to send node message")
           await create_node_message(msg.data, self.name)
         except Exception:
           LOG.exception("Couldnt send node message")

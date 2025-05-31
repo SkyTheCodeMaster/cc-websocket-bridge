@@ -151,6 +151,7 @@ async def get_node(request: Request) -> Response:
       await handle_message(msg, ws)
     else:
       request.LOG.info("[NODE] Incoming node disconnected.")
+  LOG.warning("[Node] Incoming node disconnected")
   try:
     incoming_nodes.remove(ws)
   except Exception:
