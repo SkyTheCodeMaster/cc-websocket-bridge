@@ -167,7 +167,7 @@ async def get_node(request: Request) -> Response:
   async for msg in ws:
     LOG.info("received:", msg.data)
     if msg.type in (aiohttp.WSMsgType.TEXT, aiohttp.WSMsgType.BINARY):
-      await handle_message(msg, ws)
+      await handle_message(msg, ws, request.app)
     else:
       request.LOG.info("[NODE] Incoming node disconnected.")
   LOG.warning("[Node] Incoming node disconnected")

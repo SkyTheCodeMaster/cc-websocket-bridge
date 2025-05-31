@@ -18,3 +18,4 @@ pyvenv.cfg
 src/*.service
 src/run.sh
 src/config.toml
+**/__pycache__/*
