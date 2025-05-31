@@ -58,7 +58,7 @@ async def handle_message(
       data = msg.json()
       nodemsg = NodeMessage(
         channel=data["channel"],
-        data=msg["data"],
+        data=data["data"],
         msg_id=data["msg_id"],
         binary=data["binary"],
       )
