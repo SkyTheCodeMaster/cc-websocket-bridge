@@ -123,6 +123,7 @@ class Node:
       LOG.info(f"[Node] Connected to {self.url}")
       self.ws = ws
       async for msg in ws:
+        LOG.info("received:",msg.data)
         if msg.type == aiohttp.WSMsgType.TEXT:
           await handle_message(msg, self.app)
         elif msg.type == aiohttp.WSMsgType.ERROR:
@@ -130,7 +131,7 @@ class Node:
           break
     LOG.error(f"[Node] Disconnected from {self.url}, waiting 10 seconds...")
     await asyncio.sleep(10)
-    return self.create_websocket()
+    return await self.create_websocket()
 
 
 routes = web.RouteTableDef()
@@ -145,6 +146,7 @@ async def get_node(request: Request) -> Response:
   LOG.info("[NODE] New incoming node")
 
   async for msg in ws:
+    LOG.info("received:",msg.data)
     if msg.type in (aiohttp.WSMsgType.TEXT, aiohttp.WSMsgType.BINARY):
       await handle_message(msg, ws)
     else:

@@ -43,7 +43,7 @@ coloredlogs.install(
 LOG = logging.getLogger(__name__)
 
 app = web.Application(
-  logger = CustomWebLogger(LOG),
+  #logger = CustomWebLogger(LOG),
   middlewares=[
     pg_pool_middleware
   ],

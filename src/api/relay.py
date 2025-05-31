@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 import aiohttp
@@ -11,6 +12,7 @@ if TYPE_CHECKING:
   from utils.extra_request import Request
   from aiohttp.web import Response
 
+LOG = logging.getLogger(__name__)
 channels: dict[str, Channel] = {}
 
 class Channel:
@@ -32,10 +34,6 @@ class Channel:
           await ws.send_str(msg)
         else:
           await ws.send_bytes(msg)
-    try:
-      await create_node_message(msg, self.name)
-    except Exception:
-      pass
 
   async def handle_websocket(self, request: Request) -> Response:
     ws = web.WebSocketResponse(heartbeat=10.0)
@@ -47,6 +45,10 @@ class Channel:
     async for msg in ws:
       if msg.type in (aiohttp.WSMsgType.TEXT, aiohttp.WSMsgType.BINARY):
         await self.send_message(msg.data, ws)
+        try:
+          await create_node_message(msg.data, self.name)
+        except Exception:
+          LOG.exception("Couldnt send node message")
       else:
         request.LOG.info(
           f"{self.name}: ws connection closed with exception {ws.exception()}"
