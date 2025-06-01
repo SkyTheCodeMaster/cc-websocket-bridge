@@ -67,9 +67,9 @@ async def handle_message(
       received_messages.append(data["msg_id"])
       await send_message_to_other_nodes(nodemsg, sender, app)
       if nodemsg.binary:
-        await send_relay_message(nodemsg.data.encode(), nodemsg.channel)
+        await send_relay_message(nodemsg.data.encode(), nodemsg.channel, app)
       else:
-        await send_relay_message(nodemsg.data, nodemsg.channel)
+        await send_relay_message(nodemsg.data, nodemsg.channel, app)
       # TODO: handle receiving messages from the relay side of this node.
   except Exception:
     LOG.exception("Failed to process message from another node")
