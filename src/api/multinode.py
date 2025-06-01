@@ -68,6 +68,8 @@ async def handle_message(
       await send_message_to_other_nodes(nodemsg, sender, app)
       if nodemsg.binary:
         await send_relay_message(nodemsg.data.encode(), nodemsg.channel)
+      else:
+        await send_relay_message(nodemsg.data, nodemsg.channel)
       # TODO: handle receiving messages from the relay side of this node.
   except Exception:
     LOG.exception("Failed to process message from another node")
@@ -139,9 +141,9 @@ class Node:
       print(outgoing_nodes)
       self.ws = ws
       async for msg in ws:
-        LOG.info("received:", msg.data)
+        LOG.info("received:", str(msg.data))
         if msg.type == aiohttp.WSMsgType.TEXT:
-          await handle_message(msg, self.app)
+          await handle_message(msg, ws, self.app)
         elif msg.type == aiohttp.WSMsgType.ERROR:
           LOG.error(f"Error from {self.url}... attempting reconnect")
           outgoing_nodes[self.url] = None
