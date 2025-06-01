@@ -66,6 +66,8 @@ async def handle_message(
         return
       received_messages.append(data["msg_id"])
       await send_message_to_other_nodes(nodemsg, sender, app)
+      if sender is None:
+        return # None means we were the sender, don't bother routing it back to ourselves
       if nodemsg.binary:
         await send_relay_message(nodemsg.data.encode(), nodemsg.channel, app)
       else:
@@ -80,35 +82,26 @@ async def send_message_to_other_nodes(
   sender: Union[web.WebSocketResponse, aiohttp.ClientWebSocketResponse],
   app: web.Application
 ) -> None:
-  #global outgoing_nodes, incoming_nodes
   # First send to outgoing nodes
-  LOG.info(f"Trying to send msg {msg.data} to other outgoing nodes")
   payload = {
     "binary": msg.binary,
     "data": msg.data,
     "channel": msg.channel,
     "msg_id": msg.msg_id,
   }
-  print(app.outgoing_nodes)
   for node in app.outgoing_nodes.values():
-    print(node, sender)
     if node == sender:
       continue
     try:
       await node.send_message(msg)
     except Exception:
       LOG.exception(f"Failed to send message to outgoing node {node.url}")
-    LOG.info("sent to an outgoing")
   # Send to incoming nodes
-  LOG.info("Trying to send to incoming nodes")
-  print(app.incoming_nodes)
   for ws in app.incoming_nodes:
-    print(ws, sender)
     if ws == sender:
       continue
     try:
       await ws.send_json(payload)
-      LOG.info("sent to an incoming")
     except Exception:
       LOG.exception(f"Failed to send message to incoming node {ws}")
 
@@ -138,7 +131,6 @@ class Node:
     async with self.app.cs.ws_connect(self.url, headers=headers) as ws:
       LOG.info(f"[Node] Connected to {self.url}")
       self.app.outgoing_nodes[self.url] = self
-      print(outgoing_nodes)
       self.ws = ws
       async for msg in ws:
         LOG.info("received:", str(msg.data))
@@ -149,7 +141,6 @@ class Node:
           outgoing_nodes[self.url] = None
           break
     LOG.error(f"[Node] Disconnected from {self.url}, waiting 10 seconds...")
-    #outgoing_nodes[self.url] = None
     await asyncio.sleep(10)
     return await self.create_websocket()
 
