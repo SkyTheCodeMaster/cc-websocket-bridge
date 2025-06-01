@@ -80,14 +80,10 @@ routes = web.RouteTableDef()
 
 @routes.get("/connect/{tail:.*}")
 async def websocket_handler(request: Request) -> Response:
-  conndetails: str = request.path.removeprefix(
+  channel: str = request.path.removeprefix(
     "/connect/"
   )  # Channel/password is same thing here.
-  try:
-    channel, password = conndetails.split("/")
-  except ValueError:
-    channel = conndetails
-    password = ""
+  password = request.headers.get("Authorization", None)
   if channel in channels:  # We are connecting to an existing channel.
     c = channels[channel]
     if password == c.passwd:

@@ -150,7 +150,12 @@ routes = web.RouteTableDef()
 
 @routes.get("/node/")
 async def get_node(request: Request) -> Response:
-  #global incoming_nodes
+  authorization = request.headers.get("Authorization", None)
+  if authorization is None:
+    return Response(status=403)
+  if authorization != config["srv"]["node_password"]:
+    return Response(status=403)
+
   ws = web.WebSocketResponse(heartbeat=10.0)
   await ws.prepare(request)
 

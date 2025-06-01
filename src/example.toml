@@ -1,0 +1,13 @@
+# Example config
+
+[log]
+  file = ""
+
+[srv]
+  host = "0.0.0.0"
+  port = 11000
+  nodes = [
+    #"url of your other node"
+  ]
+  # Pre-shared password for all the nodes
+  node_password = "supersecretnodepassword"

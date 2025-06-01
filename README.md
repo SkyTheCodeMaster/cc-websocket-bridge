@@ -13,7 +13,9 @@ Run `./run.sh` inside a tmux session, screen session, etc.
 Using the server raw is the only method for now. Lua libraries that mimick `modem` and `rednet` will be added soon.
 
 ```lua
-local ws = http.websocket("wss://example.com/connect/<channel_name>[/password]")
+local ws = http.websocket("wss://example.com/connect/<channel_name>", {
+  "Authorization": "Super secret, but optional, password!"
+})
 
 ws.send("Message!")
 
@@ -21,4 +23,6 @@ ws.send("Message!")
 print(ws.receive())
 -- Message!
 ```
-Use `/connect/<channel_name>` for a public channel if desired
+Use `/connect/<channel_name>` without an `Authorization` header for a public channel if desired
+
+This has multi-node compatibility, check the config for details.
