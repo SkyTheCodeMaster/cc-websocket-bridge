@@ -12,7 +12,6 @@ import uvloop
 from aiohttp import web
 
 from utils.get_routes import get_module
-from utils.logger import CustomWebLogger
 from utils.pg_pool_middleware import pg_pool_middleware
 
 LOGFMT = "[%(filename)s][%(asctime)s][%(levelname)s] %(message)s"
@@ -79,7 +78,7 @@ async def startup():
       LOG.exception("Failed to load frontend!")
 
     # If we're running as the daemon, we dont need to serve.
-    runner = web.AppRunner(app, logger=CustomWebLogger(LOG))
+    runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(
       runner,
