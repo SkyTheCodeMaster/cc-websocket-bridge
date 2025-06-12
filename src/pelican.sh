@@ -2,7 +2,7 @@
 
 # Config file for Pelican Egg
 # Python interpreter
-PYTHON="python3.13"
+PYTHON="python3.11"
 MAIN_FILE="main.py"
 
 # Upgrade pip
