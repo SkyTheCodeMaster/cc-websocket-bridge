@@ -4,18 +4,15 @@ import asyncio
 import collections
 import logging
 import random
-import string
 import tomllib
 from typing import TYPE_CHECKING
 
 import aiohttp
 from aiohttp import web
+from aiohttp.web import Response
 
 if TYPE_CHECKING:
   from typing import Union
-
-  from aiohttp.web import Response
-
   from utils.extra_request import Request
 
 with open("config.toml") as f:
@@ -27,15 +24,15 @@ LOG = logging.getLogger(__name__)
 class NodeMessage:
   data: str
   channel: str
-  msg_id: str
+  nonce: str
   binary: bool
 
   def __init__(
-    self, *, channel: str, data: Union[str, bytes], msg_id: str, binary: bool
+    self, *, channel: str, data: Union[str, bytes], nonce: str, binary: bool
   ) -> None:
     self.channel = channel
     self.data = data
-    self.msg_id = msg_id
+    self.nonce = nonce
     self.binary = binary
 
 
@@ -59,12 +56,12 @@ async def handle_message(
       nodemsg = NodeMessage(
         channel=data["channel"],
         data=data["data"],
-        msg_id=data["msg_id"],
+        nonce=data["nonce"],
         binary=data["binary"],
       )
-      if data["msg_id"] in received_messages:
+      if data["nonce"] in received_messages:
         return
-      received_messages.append(data["msg_id"])
+      received_messages.append(data["nonce"])
       await send_message_to_other_nodes(nodemsg, sender, app)
       if sender is None:
         return # None means we were the sender, don't bother routing it back to ourselves
@@ -87,7 +84,7 @@ async def send_message_to_other_nodes(
     "binary": msg.binary,
     "data": msg.data,
     "channel": msg.channel,
-    "msg_id": msg.msg_id,
+    "nonce": msg.nonce,
   }
   for node in app.outgoing_nodes.values():
     if node == sender:
@@ -120,20 +117,19 @@ class Node:
       "binary": msg.binary,
       "data": msg.data,
       "channel": msg.channel,
-      "msg_id": msg.msg_id,
+      "nonce": msg.nonce,
     }
     await self.ws.send_json(payload)
 
   async def create_websocket(self) -> None:
-    global outgoing_nodes
     LOG.info(f"[Node] Attempting to connect to {self.url}...")
     headers = {"Authorization": config["srv"]["node_password"]}
-    async with self.app.cs.ws_connect(self.url, headers=headers) as ws:
+    async with self.app.cs.ws_connect(self.url, headers=headers, heartbeat=10.0, timeout=15.0) as ws:
       LOG.info(f"[Node] Connected to {self.url}")
       self.app.outgoing_nodes[self.url] = self
       self.ws = ws
       async for msg in ws:
-        LOG.info("received:", str(msg.data))
+        LOG.debug("received:", str(msg.data))
         if msg.type == aiohttp.WSMsgType.TEXT:
           await handle_message(msg, ws, self.app)
         elif msg.type == aiohttp.WSMsgType.ERROR:
@@ -156,14 +152,14 @@ async def get_node(request: Request) -> Response:
   if authorization != config["srv"]["node_password"]:
     return Response(status=403)
 
-  ws = web.WebSocketResponse(heartbeat=10.0)
+  ws = web.WebSocketResponse(heartbeat=10.0, timeout=15.0)
   await ws.prepare(request)
 
   request.app.incoming_nodes.append(ws)
   LOG.info("[NODE] New incoming node")
   print(request.app.incoming_nodes)
   async for msg in ws:
-    LOG.info("received:", msg.data)
+    LOG.info(f"received: {msg.data}")
     if msg.type in (aiohttp.WSMsgType.TEXT, aiohttp.WSMsgType.BINARY):
       await handle_message(msg, ws, request.app)
     else:
@@ -184,8 +180,8 @@ async def setup_outgoing_connections(app: web.Application) -> None:
 
 async def create_node_message(msg: Union[str, bytes], channel: str, app: web.Application) -> None:
   "Create a NodeMessage and send it to the network"
-  msg_id = "".join(random.choices(string.ascii_letters + string.digits, k=16))
-  d = {"msg_id": msg_id, "channel": channel}
+  nonce = random.getrandbits(64)
+  d = {"nonce": nonce, "channel": channel}
 
   if type(msg) is str:
     d["data"] = msg
@@ -197,7 +193,7 @@ async def create_node_message(msg: Union[str, bytes], channel: str, app: web.App
   nodemsg = NodeMessage(
     channel=d["channel"],
     data=d["data"],
-    msg_id=d["msg_id"],
+    nonce=d["nonced"],
     binary=d["binary"],
   )
 
@@ -209,6 +205,8 @@ async def send_relay_message(
 ) -> None:
   "Send a message to the relay side of the node"
   if channel in app.channels:
+    if type(msg) not in [str, bytes]:
+      msg = str(msg)
     await app.channels[channel].send_message(msg, None)
 
 

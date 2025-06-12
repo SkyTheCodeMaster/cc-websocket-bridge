@@ -86,7 +86,7 @@ async def startup():
       config['srv']['port'],
     )
     await site.start()
-    print(f"Started server on http://{config['srv']['host']}:{config['srv']['port']}...\nPress ^C to close...")
+    LOG.info(f"Started server on http://{config['srv']['host']}:{config['srv']['port']}...\nPress ^C to close...")
     await asyncio.sleep(math.inf)
   except KeyboardInterrupt:
     pass
